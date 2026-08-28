@@ -79,8 +79,9 @@ class CallTriggerServer : Service() {
 
                 if (requestLine.startsWith("POST") && requestLine.contains("/trigger_call")) {
                     val callerName = extractJsonString(body, "caller_name") ?: "Jarvis"
+                    val callerNumber = extractJsonString(body, "caller_number") ?: "0121000000"
                     val audioPath = extractJsonString(body, "audio_path")
-                    val ok = triggerCall(callerName, audioPath)
+                    val ok = triggerCall(callerName, callerNumber, audioPath)
                     if (!ok) {
                         statusLine = "HTTP/1.1 500 Internal Server Error"
                         responseBody = """{"status":"error","message":"Could not place call. Is the Jarvis phone account enabled in Phone app settings?"}"""
@@ -115,14 +116,24 @@ class CallTriggerServer : Service() {
         return regex.find(json)?.groupValues?.get(1)
     }
 
-    private fun triggerCall(callerName: String, audioPath: String?): Boolean {
+    private fun triggerCall(callerName: String, callerNumber: String, audioPath: String?): Boolean {
         return try {
             JarvisConnectionService.pendingCallerName = callerName
+            JarvisConnectionService.pendingCallerNumber = callerNumber
             JarvisConnectionService.pendingAudioPath = audioPath
 
             val telecomManager = getSystemService(TELECOM_SERVICE) as TelecomManager
             val handle = getPhoneAccountHandle(this)
-            val extras = Bundle()
+            // Matches Phony's pattern: the system expects the incoming
+            // call's address as a proper tel: URI in this specific extra
+            // key, not just an empty bundle -- this is likely part of why
+            // registration alone wasn't enough to get a working call.
+            val extras = Bundle().apply {
+                putParcelable(
+                    TelecomManager.EXTRA_INCOMING_CALL_ADDRESS,
+                    android.net.Uri.fromParts("tel", callerNumber, null)
+                )
+            }
             telecomManager.addNewIncomingCall(handle, extras)
             true
         } catch (e: Exception) {
