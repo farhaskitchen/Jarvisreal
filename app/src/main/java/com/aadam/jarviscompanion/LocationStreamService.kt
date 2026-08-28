@@ -38,17 +38,33 @@ class LocationStreamService : Service() {
         const val CHANNEL_ID = "jarvis_location_channel"
         const val NOTIF_ID = 1
         const val HTTP_PORT = 8765
+        const val ACTION_STOP = "com.aadam.jarviscompanion.ACTION_STOP"
+
+        // Tracks whether the service has already completed setup, so a
+        // repeated "Start" tap (which re-delivers onStartCommand on the
+        // same running instance) doesn't re-register location updates
+        // or try to re-bind the already-listening HTTP port.
+        @Volatile
+        var isRunning = false
+            private set
     }
 
     override fun onCreate() {
         super.onCreate()
         fusedClient = LocationServices.getFusedLocationProviderClient(this)
         startForegroundNotification()
-        startLocationUpdates()
-        startHttpServer()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (intent?.action == ACTION_STOP) {
+            stopSelf()
+            return START_NOT_STICKY
+        }
+        if (!isRunning) {
+            isRunning = true
+            startLocationUpdates()
+            startHttpServer()
+        }
         return START_STICKY
     }
 
@@ -137,6 +153,7 @@ class LocationStreamService : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
+        isRunning = false
         try { fusedClient.removeLocationUpdates(callback) } catch (e: Exception) {}
         serverThread?.interrupt()
         try { serverSocket?.close() } catch (e: Exception) {}
