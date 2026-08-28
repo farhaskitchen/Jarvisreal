@@ -29,6 +29,9 @@ class JarvisConnectionService : ConnectionService() {
         var pendingCallerName: String = "Jarvis"
 
         @Volatile
+        var pendingCallerNumber: String = ""
+
+        @Volatile
         var pendingAudioPath: String? = null
     }
 
@@ -39,11 +42,10 @@ class JarvisConnectionService : ConnectionService() {
         val connection = JarvisConnection(applicationContext, pendingAudioPath)
         connection.setCallerDisplayName(pendingCallerName, android.telecom.TelecomManager.PRESENTATION_ALLOWED)
         connection.setAddress(
-            Uri.fromParts("tel", pendingCallerName, null),
+            Uri.fromParts("tel", pendingCallerNumber.ifBlank { "0000000000" }, null),
             android.telecom.TelecomManager.PRESENTATION_ALLOWED
         )
         connection.setRinging()
-        connection.setAudioModeIsVoip(true)
         return connection
     }
 
