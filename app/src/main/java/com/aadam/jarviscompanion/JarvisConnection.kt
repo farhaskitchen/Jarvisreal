@@ -19,7 +19,11 @@ class JarvisConnection(
     private var mediaPlayer: MediaPlayer? = null
 
     init {
-        connectionProperties = PROPERTY_SELF_MANAGED
+        // NOTE: previously set connectionProperties = PROPERTY_SELF_MANAGED,
+        // but self-managed accounts don't appear in the system's "Calling
+        // accounts" settings screen at all -- that's a different Telecom
+        // category. Phony (the reference app) uses a CALL_PROVIDER account
+        // instead, which DOES show up there, so we're matching that here.
         connectionCapabilities = CAPABILITY_HOLD.inv() and CAPABILITY_SUPPORT_HOLD.inv()
     }
 
