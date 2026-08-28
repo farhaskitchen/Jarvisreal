@@ -5,6 +5,8 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
+import android.telecom.PhoneAccount
+import android.telecom.TelecomManager
 import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -28,6 +30,9 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        registerPhoneAccount()
+        startCallTriggerServer()
+
         // Simple programmatic UI -- no XML layout needed for this
         // minimal service-launcher screen.
         val layout = LinearLayout(this).apply {
@@ -45,9 +50,14 @@ class MainActivity : AppCompatActivity() {
             text = "Stop Location Streaming"
             setOnClickListener { stopLocationService() }
         }
+        val enableCallAccountButton = Button(this).apply {
+            text = "Enable Jarvis Calling Account"
+            setOnClickListener { openCallAccountSettings() }
+        }
         layout.addView(statusText)
         layout.addView(startButton)
         layout.addView(stopButton)
+        layout.addView(enableCallAccountButton)
         setContentView(layout)
 
         this.statusText = statusText
@@ -57,11 +67,15 @@ class MainActivity : AppCompatActivity() {
     private lateinit var statusText: TextView
 
     private fun refreshStatus() {
-        statusText.text = if (LocationStreamService.isRunning) {
-            "Jarvis Companion\n\nStatus: RUNNING\nServing live location at http://127.0.0.1:8765/location"
-        } else {
-            "Jarvis Companion\n\nStatus: STOPPED\n\nTap Start to grant permissions and begin streaming location to Jarvis."
-        }
+        val locationStatus = if (LocationStreamService.isRunning) "RUNNING" else "STOPPED"
+        statusText.text = "Jarvis Companion\n\n" +
+            "Location streaming: $locationStatus\n" +
+            "http://127.0.0.1:8765/location\n\n" +
+            "Call trigger server: running\n" +
+            "http://127.0.0.1:8766/trigger_call\n\n" +
+            "If fake calls don't ring, tap 'Enable Jarvis Calling Account' " +
+            "and turn it on in the Phone app settings that open -- Android " +
+            "requires this to be enabled manually once."
     }
 
     override fun onResume() {
@@ -116,5 +130,43 @@ class MainActivity : AppCompatActivity() {
             startService(intent)
         }
         statusText.postDelayed({ refreshStatus() }, 300)
+    }
+
+    private fun registerPhoneAccount() {
+        try {
+            val telecomManager = getSystemService(TELECOM_SERVICE) as TelecomManager
+            val handle = CallTriggerServer.getPhoneAccountHandle(this)
+            val account = PhoneAccount.builder(handle, "Jarvis")
+                .setCapabilities(PhoneAccount.CAPABILITY_SELF_MANAGED)
+                .build()
+            telecomManager.registerPhoneAccount(account)
+        } catch (e: Exception) {
+            // Registration can fail on some OEM Telecom implementations --
+            // the "Enable Jarvis Calling Account" button lets the user
+            // check/fix this manually via system settings regardless.
+        }
+    }
+
+    private fun openCallAccountSettings() {
+        try {
+            val telecomManager = getSystemService(TELECOM_SERVICE) as TelecomManager
+            startActivity(Intent(TelecomManager.ACTION_CHANGE_PHONE_ACCOUNTS))
+        } catch (e: Exception) {
+            // Fallback: open general app settings if the Telecom settings
+            // screen isn't available on this OEM's Android build.
+            val intent = Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                data = android.net.Uri.fromParts("package", packageName, null)
+            }
+            startActivity(intent)
+        }
+    }
+
+    private fun startCallTriggerServer() {
+        val intent = Intent(this, CallTriggerServer::class.java)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startService(intent)
+        } else {
+            startService(intent)
+        }
     }
 }
