@@ -35,16 +35,48 @@ class MainActivity : AppCompatActivity() {
             setPadding(48, 96, 48, 48)
         }
         val statusText = TextView(this).apply {
-            text = "Jarvis Companion\n\nThis app streams live location to Jarvis running in Termux, on http://127.0.0.1:8765/location\n\nTap Start to grant permissions and begin."
             textSize = 16f
         }
         val startButton = Button(this).apply {
             text = "Start Location Streaming"
             setOnClickListener { requestPermissionsAndStart() }
         }
+        val stopButton = Button(this).apply {
+            text = "Stop Location Streaming"
+            setOnClickListener { stopLocationService() }
+        }
         layout.addView(statusText)
         layout.addView(startButton)
+        layout.addView(stopButton)
         setContentView(layout)
+
+        this.statusText = statusText
+        refreshStatus()
+    }
+
+    private lateinit var statusText: TextView
+
+    private fun refreshStatus() {
+        statusText.text = if (LocationStreamService.isRunning) {
+            "Jarvis Companion\n\nStatus: RUNNING\nServing live location at http://127.0.0.1:8765/location"
+        } else {
+            "Jarvis Companion\n\nStatus: STOPPED\n\nTap Start to grant permissions and begin streaming location to Jarvis."
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        refreshStatus()
+    }
+
+    private fun stopLocationService() {
+        val intent = Intent(this, LocationStreamService::class.java).apply {
+            action = LocationStreamService.ACTION_STOP
+        }
+        startService(intent)
+        // Small delay so the service has time to process ACTION_STOP and
+        // update isRunning before we re-read it for the status label.
+        statusText.postDelayed({ refreshStatus() }, 300)
     }
 
     private fun requestPermissionsAndStart() {
@@ -83,5 +115,6 @@ class MainActivity : AppCompatActivity() {
         } else {
             startService(intent)
         }
+        statusText.postDelayed({ refreshStatus() }, 300)
     }
 }
