@@ -67,6 +67,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var statusText: TextView
 
     private var registrationResult: String = "not attempted yet"
+    private var callServerStatus: String = "checking..."
 
     private fun refreshStatus() {
         val locationStatus = if (LocationStreamService.isRunning) "RUNNING" else "STOPPED"
@@ -74,7 +75,7 @@ class MainActivity : AppCompatActivity() {
         statusText.text = "Jarvis Companion\n\n" +
             "Location streaming: $locationStatus\n" +
             "http://127.0.0.1:8765/location\n\n" +
-            "Call trigger server: running\n" +
+            "Call trigger server: $callServerStatus\n" +
             "http://127.0.0.1:8766/trigger_call\n\n" +
             "Phone account registration: $registrationResult\n" +
             "Phone account ENABLED: $accountEnabled\n\n" +
@@ -86,6 +87,33 @@ class MainActivity : AppCompatActivity() {
                 "apps > look for 'Calling accounts' or 'Other calling apps', " +
                 "or search Settings for 'calling accounts'."
             else "")
+        checkCallServerLive()
+    }
+
+    private fun checkCallServerLive() {
+        // Real liveness check instead of assuming the server is running --
+        // a foreground service can still get killed by the OS, so this
+        // actually tries to connect rather than trusting a static label.
+        Thread {
+            val reachable = try {
+                java.net.Socket().use { socket ->
+                    socket.connect(java.net.InetSocketAddress("127.0.0.1", CallTriggerServer.PORT), 500)
+                    true
+                }
+            } catch (e: Exception) {
+                false
+            }
+            runOnUiThread {
+                callServerStatus = if (reachable) "RUNNING (port ${CallTriggerServer.PORT} reachable)"
+                    else "NOT REACHABLE -- try Force Stop then reopen the app"
+                // Update just that one line without re-running the whole
+                // status/account check again to avoid a refresh loop.
+                statusText.text = statusText.text.toString().replace(
+                    Regex("Call trigger server:.*"),
+                    "Call trigger server: $callServerStatus"
+                )
+            }
+        }.start()
     }
 
     private fun isJarvisAccountEnabled(): Boolean {
@@ -195,7 +223,7 @@ class MainActivity : AppCompatActivity() {
     private fun startCallTriggerServer() {
         val intent = Intent(this, CallTriggerServer::class.java)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            startService(intent)
+            startForegroundService(intent)
         } else {
             startService(intent)
         }
