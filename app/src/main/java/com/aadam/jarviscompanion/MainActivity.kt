@@ -161,8 +161,15 @@ class MainActivity : AppCompatActivity() {
         registrationResult = try {
             val telecomManager = getSystemService(TELECOM_SERVICE) as TelecomManager
             val handle = CallTriggerServer.getPhoneAccountHandle(this)
+            // NOTE: previously used CAPABILITY_SELF_MANAGED, which is a
+            // different Telecom category that does NOT appear in the
+            // system's "Calling accounts" settings screen. Confirmed by
+            // checking Phony's (working) source: it uses
+            // CAPABILITY_CALL_PROVIDER + addSupportedUriScheme(SCHEME_TEL)
+            // instead, which is what actually shows up there.
             val account = PhoneAccount.builder(handle, "Jarvis")
-                .setCapabilities(PhoneAccount.CAPABILITY_SELF_MANAGED)
+                .setCapabilities(PhoneAccount.CAPABILITY_CALL_PROVIDER)
+                .addSupportedUriScheme(PhoneAccount.SCHEME_TEL)
                 .build()
             telecomManager.registerPhoneAccount(account)
             "SUCCESS (registered with Telecom)"
