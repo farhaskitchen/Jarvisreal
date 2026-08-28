@@ -66,16 +66,41 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var statusText: TextView
 
+    private var registrationResult: String = "not attempted yet"
+
     private fun refreshStatus() {
         val locationStatus = if (LocationStreamService.isRunning) "RUNNING" else "STOPPED"
+        val accountEnabled = isJarvisAccountEnabled()
         statusText.text = "Jarvis Companion\n\n" +
             "Location streaming: $locationStatus\n" +
             "http://127.0.0.1:8765/location\n\n" +
             "Call trigger server: running\n" +
             "http://127.0.0.1:8766/trigger_call\n\n" +
-            "If fake calls don't ring, tap 'Enable Jarvis Calling Account' " +
-            "and turn it on in the Phone app settings that open -- Android " +
-            "requires this to be enabled manually once."
+            "Phone account registration: $registrationResult\n" +
+            "Phone account ENABLED: $accountEnabled\n\n" +
+            (if (!accountEnabled)
+                "Not enabled yet -- tap 'Enable Jarvis Calling Account'. " +
+                "If that opens a screen only showing your SIM carrier " +
+                "(not 'Jarvis'), your phone's calling-accounts screen is " +
+                "in a different place -- try Settings > Apps > Default " +
+                "apps > look for 'Calling accounts' or 'Other calling apps', " +
+                "or search Settings for 'calling accounts'."
+            else "")
+    }
+
+    private fun isJarvisAccountEnabled(): Boolean {
+        return try {
+            val telecomManager = getSystemService(TELECOM_SERVICE) as TelecomManager
+            val handle = CallTriggerServer.getPhoneAccountHandle(this)
+            // enablePhoneAccount check isn't directly queryable pre-API33
+            // in a simple boolean, but getPhoneAccount returns null if
+            // it's not registered/visible, and isEnabled() reflects the
+            // user's toggle state in system settings once it exists.
+            val account = telecomManager.getPhoneAccount(handle)
+            account?.isEnabled == true
+        } catch (e: Exception) {
+            false
+        }
     }
 
     override fun onResume() {
@@ -133,17 +158,16 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun registerPhoneAccount() {
-        try {
+        registrationResult = try {
             val telecomManager = getSystemService(TELECOM_SERVICE) as TelecomManager
             val handle = CallTriggerServer.getPhoneAccountHandle(this)
             val account = PhoneAccount.builder(handle, "Jarvis")
                 .setCapabilities(PhoneAccount.CAPABILITY_SELF_MANAGED)
                 .build()
             telecomManager.registerPhoneAccount(account)
+            "SUCCESS (registered with Telecom)"
         } catch (e: Exception) {
-            // Registration can fail on some OEM Telecom implementations --
-            // the "Enable Jarvis Calling Account" button lets the user
-            // check/fix this manually via system settings regardless.
+            "FAILED: ${e.javaClass.simpleName}: ${e.message}"
         }
     }
 
