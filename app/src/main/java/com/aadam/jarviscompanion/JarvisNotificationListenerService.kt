@@ -28,10 +28,10 @@ class JarvisNotificationListenerService : NotificationListenerService() {
 
     companion object {
         // key: notification key (unique per-notification from the OS)
-        private val activeNotifications = ConcurrentHashMap<String, NotifSnapshot>()
+        private val notifStore = ConcurrentHashMap<String, NotifSnapshot>()
 
         val currentNotifications: List<NotifSnapshot>
-            get() = activeNotifications.values.sortedByDescending { it.postTime }
+            get() = notifStore.values.sortedByDescending { it.postTime }
 
         @Volatile
         var isListening = false
@@ -44,10 +44,9 @@ class JarvisNotificationListenerService : NotificationListenerService() {
         // Populate with whatever's already showing at connect time, not
         // just notifications that arrive after this point.
         try {
-            val current = activeNotifications
-            current.clear()
+            notifStore.clear()
             getActiveNotifications()?.forEach { sbn ->
-                toSnapshot(sbn)?.let { current[sbn.key] = it }
+                toSnapshot(sbn)?.let { notifStore[sbn.key] = it }
             }
         } catch (e: Exception) {
             // Best-effort initial sync; onNotificationPosted will still
@@ -63,12 +62,12 @@ class JarvisNotificationListenerService : NotificationListenerService() {
     override fun onNotificationPosted(sbn: StatusBarNotification?) {
         sbn ?: return
         val snap = toSnapshot(sbn) ?: return
-        activeNotifications[sbn.key] = snap
+        notifStore[sbn.key] = snap
     }
 
     override fun onNotificationRemoved(sbn: StatusBarNotification?) {
         sbn ?: return
-        activeNotifications.remove(sbn.key)
+        notifStore.remove(sbn.key)
     }
 
     private fun toSnapshot(sbn: StatusBarNotification): NotifSnapshot? {

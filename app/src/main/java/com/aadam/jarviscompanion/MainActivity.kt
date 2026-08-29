@@ -228,7 +228,6 @@ class MainActivity : AppCompatActivity() {
                 val (text, action) = btn
                 card.addView(Button(this).apply {
                     this.text = text
-                    isAllCaps = false
                     setTextColor(if (i == 0) Color.WHITE else ContextCompat.getColor(this@MainActivity, R.color.jarvis_text_primary))
                     background = ContextCompat.getDrawable(
                         this@MainActivity,
