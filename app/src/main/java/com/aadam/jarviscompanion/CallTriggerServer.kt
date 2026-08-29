@@ -77,6 +77,12 @@ class CallTriggerServer : Service() {
     private fun startServer() {
         serverThread = thread(start = true) {
             try {
+                // Loopback only, intentionally: this endpoint TRIGGERS a
+                // fake incoming call, so it stays phone-only (reachable
+                // from Termux on the same device) rather than opened to
+                // the LAN like DeviceInfoService/LocationStreamService --
+                // opening this one to the network would let any device on
+                // the same WiFi fake-call this phone with no auth.
                 serverSocket = ServerSocket(PORT, 50, java.net.InetAddress.getByName("127.0.0.1"))
                 while (!Thread.currentThread().isInterrupted) {
                     val client = serverSocket?.accept() ?: break

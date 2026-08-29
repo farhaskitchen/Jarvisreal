@@ -114,7 +114,12 @@ class LocationStreamService : Service() {
     private fun startHttpServer() {
         serverThread = thread(start = true) {
             try {
-                serverSocket = ServerSocket(HTTP_PORT, 50, java.net.InetAddress.getByName("127.0.0.1"))
+                // Bind to 0.0.0.0 so devices elsewhere on the LAN (e.g.
+                // the projector GUI) can reach this using the phone's WiFi
+                // IP, not just 127.0.0.1 from the phone itself. Read-only
+                // endpoint, so opening it to the network is low-risk
+                // compared to CallTriggerServer (which stays loopback-only).
+                serverSocket = ServerSocket(HTTP_PORT, 50, java.net.InetAddress.getByName("0.0.0.0"))
                 while (!Thread.currentThread().isInterrupted) {
                     val client = serverSocket?.accept() ?: break
                     handleClient(client)
