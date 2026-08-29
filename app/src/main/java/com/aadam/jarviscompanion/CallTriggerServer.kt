@@ -1,12 +1,17 @@
 package com.aadam.jarviscompanion
 
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import android.app.Service
 import android.content.Intent
+import android.os.Build
 import android.os.Bundle
 import android.os.IBinder
 import android.telecom.PhoneAccount
 import android.telecom.PhoneAccountHandle
 import android.telecom.TelecomManager
+import androidx.core.app.NotificationCompat
 import java.io.BufferedReader
 import java.io.OutputStreamWriter
 import java.net.ServerSocket
@@ -27,6 +32,8 @@ class CallTriggerServer : Service() {
     companion object {
         const val PORT = 8766
         const val ACCOUNT_ID = "jarvis_call_account"
+        const val CHANNEL_ID = "jarvis_call_trigger_channel"
+        const val NOTIF_ID = 2
 
         fun getPhoneAccountHandle(context: android.content.Context): PhoneAccountHandle {
             return PhoneAccountHandle(
@@ -38,7 +45,30 @@ class CallTriggerServer : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        // Started via startForegroundService(), so Android requires
+        // startForeground() to be called within ~5s of onCreate() or it
+        // kills the whole process with ForegroundServiceDidNotStartInTimeException
+        // -- that was the crash: this service listened on its port but
+        // never actually promoted itself to foreground.
+        startForegroundNotification()
         startServer()
+    }
+
+    private fun startForegroundNotification() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                CHANNEL_ID, "Jarvis Call Trigger", NotificationManager.IMPORTANCE_LOW
+            )
+            val mgr = getSystemService(NotificationManager::class.java)
+            mgr.createNotificationChannel(channel)
+        }
+        val notification: Notification = NotificationCompat.Builder(this, CHANNEL_ID)
+            .setContentTitle("Jarvis Companion")
+            .setContentText("Listening for call triggers")
+            .setSmallIcon(android.R.drawable.ic_menu_call)
+            .setOngoing(true)
+            .build()
+        startForeground(NOTIF_ID, notification)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int = START_STICKY
