@@ -22,6 +22,9 @@ class MainActivity : AppCompatActivity() {
     ).apply {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             add(Manifest.permission.POST_NOTIFICATIONS)
+            add(Manifest.permission.READ_MEDIA_AUDIO)
+        } else {
+            add(Manifest.permission.READ_EXTERNAL_STORAGE)
         }
     }
 
