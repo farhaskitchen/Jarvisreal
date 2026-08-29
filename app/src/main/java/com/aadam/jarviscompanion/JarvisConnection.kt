@@ -31,7 +31,14 @@ class JarvisConnection(
         // answered, since Telecom tries to sync nonsense flags to the
         // system UI/audio stack.
         connectionCapabilities = 0
-        setAudioModeIsVoip(true)
+        // NOTE: previously called setAudioModeIsVoip(true) here to try to
+        // fix audio routing, but on this OEM's Telecom stack it caused the
+        // ConnectionService to die (CS_DEATH) a few seconds after ringing
+        // started, before the user's Accept tap could even register --
+        // confirmed via dumpsys telecom showing SET_VOIP_MODE(Y) followed
+        // shortly by SET_DISCONNECTED/CS_DEATH while still in RINGING.
+        // CALL_PROVIDER connections don't need this call anyway; audio
+        // mode is handled by Telecom itself once the call goes active.
     }
 
     override fun onAnswer() {
