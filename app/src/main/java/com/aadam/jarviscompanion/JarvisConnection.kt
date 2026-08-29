@@ -24,7 +24,14 @@ class JarvisConnection(
         // accounts" settings screen at all -- that's a different Telecom
         // category. Phony (the reference app) uses a CALL_PROVIDER account
         // instead, which DOES show up there, so we're matching that here.
-        connectionCapabilities = CAPABILITY_HOLD.inv() and CAPABILITY_SUPPORT_HOLD.inv()
+        //
+        // Capabilities left at 0 (none) -- we don't support hold, mute
+        // management, or conferencing, and setting bogus capability bits
+        // here (e.g. via .inv() on a single flag) crashes the call once
+        // answered, since Telecom tries to sync nonsense flags to the
+        // system UI/audio stack.
+        connectionCapabilities = 0
+        setAudioModeIsVoip(true)
     }
 
     override fun onAnswer() {
