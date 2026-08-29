@@ -110,6 +110,12 @@ class DeviceInfoService : Service() {
                 writer.write("HTTP/1.1 200 OK\r\n")
                 writer.write("Content-Type: application/json\r\n")
                 writer.write("Content-Length: ${body.toByteArray().size}\r\n")
+                // CORS: without this header, a browser-based dashboard
+                // (fetch() from the projector GUI) will block reading the
+                // response even though the request itself succeeds -- the
+                // server has to opt in explicitly. Wide open (*) is fine
+                // here since this is a read-only endpoint on a local LAN.
+                writer.write("Access-Control-Allow-Origin: *\r\n")
                 writer.write("Connection: close\r\n\r\n")
                 writer.write(body)
                 writer.flush()

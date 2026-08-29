@@ -144,6 +144,11 @@ class LocationStreamService : Service() {
                 writer.write("HTTP/1.1 200 OK\r\n")
                 writer.write("Content-Type: application/json\r\n")
                 writer.write("Content-Length: ${body.toByteArray().size}\r\n")
+                // CORS: needed for the same reason as DeviceInfoService --
+                // a browser-based dashboard's fetch() call gets blocked
+                // client-side without this, even though the phone answers
+                // the request fine.
+                writer.write("Access-Control-Allow-Origin: *\r\n")
                 writer.write("Connection: close\r\n\r\n")
                 writer.write(body)
                 writer.flush()
