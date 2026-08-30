@@ -20,6 +20,11 @@ class JarvisConnection(
     private var conversationManager: CallConversationManager? = null
 
     init {
+        // Register with CallStateManager so the HTTP accept/reject
+        // endpoints can find and drive this Connection from outside this
+        // class. Cleared on any terminal transition below.
+        CallStateManager.activeFakeConnection = this
+
         // NOTE: previously set connectionProperties = PROPERTY_SELF_MANAGED,
         // but self-managed accounts don't appear in the system's "Calling
         // accounts" settings screen at all -- that's a different Telecom
@@ -44,12 +49,34 @@ class JarvisConnection(
 
     override fun onAnswer() {
         setActive()
+        CallStateManager.setFakeCallState(CallStateManager.State.ACTIVE)
         playMessageAudio()
+    }
+
+    /**
+     * Programmatic equivalent of onAnswer(), for the /accept_fake_call
+     * HTTP endpoint (PC-triggered accept). onAnswer() itself is only
+     * ever invoked BY Telecom in response to the system call UI/a
+     * Bluetooth device -- this lets an external trigger request the same
+     * outcome (setActive() + start playing the message) directly.
+     */
+    fun answerFromExternalTrigger() {
+        onAnswer()
+    }
+
+    /**
+     * Programmatic equivalent of onReject(), for the /reject_fake_call
+     * HTTP endpoint.
+     */
+    fun rejectFromExternalTrigger() {
+        onReject()
     }
 
     override fun onReject() {
         conversationManager?.stop()
         cleanupAudio()
+        CallStateManager.setFakeCallState(CallStateManager.State.IDLE)
+        CallStateManager.activeFakeConnection = null
         setDisconnected(DisconnectCause(DisconnectCause.REJECTED))
         destroy()
     }
@@ -57,6 +84,8 @@ class JarvisConnection(
     override fun onDisconnect() {
         conversationManager?.stop()
         cleanupAudio()
+        CallStateManager.setFakeCallState(CallStateManager.State.IDLE)
+        CallStateManager.activeFakeConnection = null
         setDisconnected(DisconnectCause(DisconnectCause.LOCAL))
         destroy()
     }
@@ -64,6 +93,8 @@ class JarvisConnection(
     override fun onAbort() {
         conversationManager?.stop()
         cleanupAudio()
+        CallStateManager.setFakeCallState(CallStateManager.State.IDLE)
+        CallStateManager.activeFakeConnection = null
         setDisconnected(DisconnectCause(DisconnectCause.CANCELED))
         destroy()
     }

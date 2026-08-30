@@ -28,7 +28,8 @@ class MainActivity : AppCompatActivity() {
     private val permissionsNeeded = mutableListOf(
         Manifest.permission.ACCESS_FINE_LOCATION,
         Manifest.permission.ACCESS_COARSE_LOCATION,
-        Manifest.permission.RECORD_AUDIO
+        Manifest.permission.RECORD_AUDIO,
+        Manifest.permission.READ_PHONE_STATE
     ).apply {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             add(Manifest.permission.POST_NOTIFICATIONS)
@@ -54,6 +55,7 @@ class MainActivity : AppCompatActivity() {
 
         registerPhoneAccount()
         startCallTriggerServer()
+        RealCallStateWatcher.start(this)
 
         setContentView(buildLayout())
         refreshStatus()
@@ -358,6 +360,7 @@ class MainActivity : AppCompatActivity() {
     private fun startAllServices() {
         startForegroundServiceCompat(Intent(this, LocationStreamService::class.java))
         startForegroundServiceCompat(Intent(this, DeviceInfoService::class.java))
+        RealCallStateWatcher.start(this)
         window.decorView.postDelayed({ refreshStatus() }, 300)
     }
 

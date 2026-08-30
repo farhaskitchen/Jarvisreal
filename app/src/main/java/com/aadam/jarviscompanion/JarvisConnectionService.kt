@@ -46,6 +46,7 @@ class JarvisConnectionService : ConnectionService() {
             android.telecom.TelecomManager.PRESENTATION_ALLOWED
         )
         connection.setRinging()
+        CallStateManager.setFakeCallState(CallStateManager.State.RINGING, pendingCallerName)
         return connection
     }
 
