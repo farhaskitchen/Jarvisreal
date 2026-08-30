@@ -17,6 +17,7 @@ class JarvisConnection(
 ) : Connection() {
 
     private var mediaPlayer: MediaPlayer? = null
+    private var conversationManager: CallConversationManager? = null
 
     init {
         // NOTE: previously set connectionProperties = PROPERTY_SELF_MANAGED,
@@ -47,18 +48,21 @@ class JarvisConnection(
     }
 
     override fun onReject() {
+        conversationManager?.stop()
         cleanupAudio()
         setDisconnected(DisconnectCause(DisconnectCause.REJECTED))
         destroy()
     }
 
     override fun onDisconnect() {
+        conversationManager?.stop()
         cleanupAudio()
         setDisconnected(DisconnectCause(DisconnectCause.LOCAL))
         destroy()
     }
 
     override fun onAbort() {
+        conversationManager?.stop()
         cleanupAudio()
         setDisconnected(DisconnectCause(DisconnectCause.CANCELED))
         destroy()
@@ -73,11 +77,14 @@ class JarvisConnection(
             mediaPlayer = MediaPlayer().apply {
                 setDataSource(path)
                 setOnCompletionListener {
-                    // Message finished playing -- end the call automatically
-                    // rather than leaving it connected with silence.
                     cleanupAudio()
-                    setDisconnected(DisconnectCause(DisconnectCause.LOCAL))
-                    destroy()
+                    // Previously disconnected here once the initial message
+                    // finished. Now starts the live conversation loop
+                    // instead -- record what the user says, send it to
+                    // jarvis.py, play the reply, repeat, until either side
+                    // signals the call should end (sign-off phrase, silence
+                    // timeout, or the user hanging up via onDisconnect()).
+                    startConversation()
                 }
                 prepare()
                 start()
@@ -89,6 +96,21 @@ class JarvisConnection(
             setDisconnected(DisconnectCause(DisconnectCause.ERROR))
             destroy()
         }
+    }
+
+    private fun startConversation() {
+        conversationManager = CallConversationManager(
+            jarvisHost = "127.0.0.1",
+            onNeedDisconnect = {
+                // Don't call conversationManager?.stop() here -- setDisconnected()
+                // below triggers Telecom to call onDisconnect() on this same
+                // Connection, which already calls stop(). Calling it twice
+                // is harmless (stop() is idempotent) but redundant.
+                setDisconnected(DisconnectCause(DisconnectCause.LOCAL))
+                destroy()
+            }
+        )
+        conversationManager?.start()
     }
 
     private fun cleanupAudio() {
