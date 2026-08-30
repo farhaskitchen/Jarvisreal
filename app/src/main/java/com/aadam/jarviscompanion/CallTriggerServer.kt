@@ -33,7 +33,9 @@ class CallTriggerServer : Service() {
         const val PORT = 8766
         const val ACCOUNT_ID = "jarvis_call_account"
         const val CHANNEL_ID = "jarvis_call_trigger_channel"
+        const val REMINDER_CHANNEL_ID = "jarvis_reminder_channel"
         const val NOTIF_ID = 2
+        const val REMINDER_NOTIF_ID_BASE = 1000
 
         fun getPhoneAccountHandle(context: android.content.Context): PhoneAccountHandle {
             return PhoneAccountHandle(
@@ -122,6 +124,14 @@ class CallTriggerServer : Service() {
                         statusLine = "HTTP/1.1 500 Internal Server Error"
                         responseBody = """{"status":"error","message":"Could not place call. Is the Jarvis phone account enabled in Phone app settings?"}"""
                     }
+                } else if (requestLine.startsWith("POST") && requestLine.contains("/notify")) {
+                    val title = extractJsonString(body, "title") ?: "Jarvis"
+                    val message = extractJsonString(body, "message") ?: ""
+                    val ok = sendReminderNotification(title, message)
+                    if (!ok) {
+                        statusLine = "HTTP/1.1 500 Internal Server Error"
+                        responseBody = """{"status":"error","message":"Could not post notification."}"""
+                    }
                 } else if (requestLine.contains("/status")) {
                     responseBody = """{"status":"running"}"""
                 } else {
@@ -171,6 +181,34 @@ class CallTriggerServer : Service() {
                 )
             }
             telecomManager.addNewIncomingCall(handle, extras)
+            true
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    private fun sendReminderNotification(title: String, message: String): Boolean {
+        return try {
+            val mgr = getSystemService(NotificationManager::class.java)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                val channel = NotificationChannel(
+                    REMINDER_CHANNEL_ID, "Jarvis Reminders", NotificationManager.IMPORTANCE_HIGH
+                )
+                mgr.createNotificationChannel(channel)
+            }
+            val notification = NotificationCompat.Builder(this, REMINDER_CHANNEL_ID)
+                .setContentTitle(title)
+                .setContentText(message)
+                .setStyle(NotificationCompat.BigTextStyle().bigText(message))
+                .setSmallIcon(android.R.drawable.ic_dialog_info)
+                .setPriority(NotificationCompat.PRIORITY_HIGH)
+                .setAutoCancel(true)
+                .build()
+            // Each reminder gets its own notification ID (rather than
+            // reusing one) so multiple reminders stack in the shade
+            // instead of the newest silently replacing the last one.
+            val notifId = REMINDER_NOTIF_ID_BASE + (System.currentTimeMillis() % 10000).toInt()
+            mgr.notify(notifId, notification)
             true
         } catch (e: Exception) {
             false
