@@ -13,7 +13,8 @@ import android.telecom.DisconnectCause
  */
 class JarvisConnection(
     private val context: Context,
-    private val audioPath: String?
+    private val audioPath: String?,
+    private val isOutgoing: Boolean = false
 ) : Connection() {
 
     private var mediaPlayer: MediaPlayer? = null
@@ -45,6 +46,17 @@ class JarvisConnection(
         // shortly by SET_DISCONNECTED/CS_DEATH while still in RINGING.
         // CALL_PROVIDER connections don't need this call anyway; audio
         // mode is handled by Telecom itself once the call goes active.
+
+        if (isOutgoing) {
+            // No ringing state and no pre-recorded message for an
+            // outgoing call -- the user dialed US, so go straight to
+            // active and start the live conversation loop immediately,
+            // same engine the inbound fake-call flow uses once its
+            // initial message finishes.
+            setActive()
+            CallStateManager.setFakeCallState(CallStateManager.State.ACTIVE, "Jarvis")
+            startConversation()
+        }
     }
 
     override fun onAnswer() {

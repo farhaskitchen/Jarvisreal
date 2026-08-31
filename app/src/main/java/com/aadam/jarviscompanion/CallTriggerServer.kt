@@ -12,7 +12,6 @@ import android.telecom.PhoneAccount
 import android.telecom.PhoneAccountHandle
 import android.telecom.TelecomManager
 import androidx.core.app.NotificationCompat
-import org.json.JSONObject
 import java.io.BufferedReader
 import java.io.OutputStreamWriter
 import java.net.ServerSocket
@@ -135,8 +134,6 @@ class CallTriggerServer : Service() {
                     }
                 } else if (requestLine.contains("/status")) {
                     responseBody = """{"status":"running"}"""
-                } else if (requestLine.contains("/call_state")) {
-                    responseBody = callStateJson()
                 } else if (requestLine.startsWith("POST") && requestLine.contains("/accept_fake_call")) {
                     val ok = CallStateManager.activeFakeConnection?.let {
                         it.answerFromExternalTrigger()
@@ -206,28 +203,6 @@ class CallTriggerServer : Service() {
         } catch (e: Exception) {
             false
         }
-    }
-
-    private fun callStateJson(): String {
-        // Building this explicitly rather than passing CallStateManager's
-        // nested Map straight into JSONObject(Map) -- that constructor's
-        // handling of nested Map VALUES (as opposed to top-level ones)
-        // isn't reliably documented across org.json implementations, so
-        // safer to be explicit than trust it silently serializes correctly.
-        val snap = CallStateManager.snapshot()
-        val root = JSONObject()
-        root.put("overall_state", snap["overall_state"])
-        val fake = snap["fake_call"] as? Map<*, *>
-        root.put("fake_call", JSONObject().apply {
-            put("state", fake?.get("state"))
-            put("caller_name", fake?.get("caller_name"))
-        })
-        val real = snap["real_call"] as? Map<*, *>
-        root.put("real_call", JSONObject().apply {
-            put("state", real?.get("state"))
-            put("number", real?.get("number"))
-        })
-        return root.toString()
     }
 
     private fun sendReminderNotification(title: String, message: String): Boolean {

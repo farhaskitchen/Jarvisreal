@@ -135,6 +135,7 @@ class DeviceInfoService : Service() {
         root.put("memory", memoryInfo())
         root.put("storage", storageInfo())
         root.put("notifications", notificationsInfo())
+        root.put("call_state", callStateInfo())
         return root
     }
 
@@ -243,6 +244,29 @@ class DeviceInfoService : Service() {
             arr.put(obj)
         }
         return arr
+    }
+
+    private fun callStateInfo(): JSONObject {
+        // Reads CallStateManager directly (same object CallTriggerServer's
+        // accept/reject endpoints and JarvisConnection/RealCallStateWatcher
+        // write into) -- built explicitly rather than via JSONObject(Map)
+        // for the same reason noted where this was first written in
+        // CallTriggerServer: nested Map-value handling in that constructor
+        // isn't reliably documented, safer to be explicit.
+        val snap = CallStateManager.snapshot()
+        val root = JSONObject()
+        root.put("overall_state", snap["overall_state"])
+        val fake = snap["fake_call"] as? Map<*, *>
+        root.put("fake_call", JSONObject().apply {
+            put("state", fake?.get("state"))
+            put("caller_name", fake?.get("caller_name"))
+        })
+        val real = snap["real_call"] as? Map<*, *>
+        root.put("real_call", JSONObject().apply {
+            put("state", real?.get("state"))
+            put("number", real?.get("number"))
+        })
+        return root
     }
 
     override fun onDestroy() {

@@ -58,4 +58,29 @@ class JarvisConnectionService : ConnectionService() {
         // not enabled yet in Phone app settings), there's nothing to clean
         // up since no Connection was created.
     }
+
+    override fun onCreateOutgoingConnection(
+        connectionManagerPhoneAccount: PhoneAccountHandle?,
+        request: ConnectionRequest?
+    ): Connection {
+        // Telecom only routes an outgoing call through OUR account if the
+        // dialer explicitly selected it (e.g. an account picker, or a
+        // contact with a saved per-number account preference) -- whether
+        // that actually happens reliably for a normal contact tap is
+        // OEM/dialer-dependent and not something this code controls.
+        // If we're here at all, Telecom has already decided to route to
+        // us, regardless of how.
+        val connection = JarvisConnection(applicationContext, audioPath = null, isOutgoing = true)
+        connection.setCallerDisplayName("Jarvis", android.telecom.TelecomManager.PRESENTATION_ALLOWED)
+        val address = request?.address ?: Uri.fromParts("tel", "0000000000", null)
+        connection.setAddress(address, android.telecom.TelecomManager.PRESENTATION_ALLOWED)
+        return connection
+    }
+
+    override fun onCreateOutgoingConnectionFailed(
+        connectionManagerPhoneAccount: PhoneAccountHandle?,
+        request: ConnectionRequest?
+    ) {
+        // No-op, same reasoning as onCreateIncomingConnectionFailed.
+    }
 }
