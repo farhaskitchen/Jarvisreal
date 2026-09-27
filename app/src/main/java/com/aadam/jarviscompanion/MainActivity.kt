@@ -29,7 +29,9 @@ class MainActivity : AppCompatActivity() {
         Manifest.permission.ACCESS_FINE_LOCATION,
         Manifest.permission.ACCESS_COARSE_LOCATION,
         Manifest.permission.RECORD_AUDIO,
-        Manifest.permission.READ_PHONE_STATE
+        Manifest.permission.READ_PHONE_STATE,
+        Manifest.permission.READ_CALL_LOG,
+        Manifest.permission.READ_SMS
     ).apply {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             add(Manifest.permission.POST_NOTIFICATIONS)
@@ -46,6 +48,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var deviceInfoStatusRow: StatusRow
     private lateinit var phoneAccountStatusRow: StatusRow
     private lateinit var notifAccessStatusRow: StatusRow
+    private lateinit var usageAccessStatusRow: StatusRow
     private lateinit var batteryExemptStatusRow: StatusRow
 
     private var registrationResult: String = "not attempted yet"
@@ -119,6 +122,20 @@ class MainActivity : AppCompatActivity() {
             buttons = listOf(
                 "Grant Notification Access" to { openNotificationAccessSettings() }
             )
+        ))
+        container.addView(spacer(16))
+
+        container.addView(sectionCard(
+            title = "Data Access",
+            rows = listOf(
+                statusRowView("App usage access", "").also { usageAccessStatusRow = it }
+            ),
+            buttons = listOf(
+                "Grant Usage Access" to { openUsageAccessSettings() }
+            ),
+            footnote = "Call log and SMS access are requested with the other " +
+                "permissions above (Start All Services). App usage access " +
+                "needs its own settings screen, same as notification access."
         ))
         container.addView(spacer(16))
 
@@ -263,6 +280,8 @@ class MainActivity : AppCompatActivity() {
         setRow(deviceInfoStatusRow, DeviceInfoService.isRunning)
         setRow(notifAccessStatusRow, JarvisNotificationListenerService.isListening,
             onLabel = "Granted", offLabel = "Not granted -- tap below")
+        setRow(usageAccessStatusRow, DeviceDataProvider.hasUsageAccess(this),
+            onLabel = "Granted", offLabel = "Not granted -- tap below")
 
         val accountEnabled = isJarvisAccountEnabled()
         setRow(phoneAccountStatusRow, accountEnabled,
@@ -401,6 +420,17 @@ class MainActivity : AppCompatActivity() {
     private fun openNotificationAccessSettings() {
         try {
             startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
+        } catch (e: Exception) {
+            val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                data = Uri.fromParts("package", packageName, null)
+            }
+            startActivity(intent)
+        }
+    }
+
+    private fun openUsageAccessSettings() {
+        try {
+            startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS))
         } catch (e: Exception) {
             val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
                 data = Uri.fromParts("package", packageName, null)

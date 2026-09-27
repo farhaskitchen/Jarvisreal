@@ -136,6 +136,9 @@ class DeviceInfoService : Service() {
         root.put("storage", storageInfo())
         root.put("notifications", notificationsInfo())
         root.put("call_state", callStateInfo())
+        root.put("call_log", DeviceDataProvider.callLog(this))
+        root.put("sms", DeviceDataProvider.smsMessages(this))
+        root.put("app_usage", DeviceDataProvider.appUsageStats(this))
         return root
     }
 
