@@ -27,6 +27,18 @@ class BootReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent?) {
         if (intent?.action != Intent.ACTION_BOOT_COMPLETED) return
 
+        // IMPORTANT: do this synchronously, directly in onReceive(), not
+        // deferred via Handler.postDelayed(). Once onReceive() returns,
+        // Android may aggressively kill this process if it was only
+        // hosting the receiver (see BroadcastReceiver's own docs) --
+        // deferred posts can simply never fire. startForegroundService()
+        // itself is fast/non-blocking (it just enqueues the start with
+        // the OS; it does not wait for the service to finish
+        // initializing), so calling it three times in a row here is safe
+        // and correct, unlike doing the SERVICES' actual heavy lifting
+        // in the receiver, which would genuinely risk the ANR/ANR-like
+        // ForegroundServiceDidNotStartInTimeException failure seen
+        // before.
         startForegroundServiceCompat(context, LocationStreamService::class.java)
         startForegroundServiceCompat(context, CallTriggerServer::class.java)
         startForegroundServiceCompat(context, DeviceInfoService::class.java)
@@ -42,9 +54,9 @@ class BootReceiver : BroadcastReceiver() {
             }
         } catch (e: Exception) {
             // Some OEM builds restrict background service starts from a
-            // BOOT_COMPLETED receiver even with the exemption granted --
-            // if this throws, the user will need to open the app once
-            // after this specific OS update to re-arm auto-start.
+            // BOOT_COMPLETED-originated trigger even with the exemption
+            // granted -- if this throws, the user will need to open the
+            // app once after this specific OS update to re-arm auto-start.
         }
     }
 }

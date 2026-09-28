@@ -51,8 +51,19 @@ class LocationStreamService : Service() {
 
     override fun onCreate() {
         super.onCreate()
-        fusedClient = LocationServices.getFusedLocationProviderClient(this)
+        // startForeground() FIRST, before anything that could stall --
+        // specifically LocationServices.getFusedLocationProviderClient(),
+        // which talks to Google Play Services. Right after boot, Play
+        // Services is often still starting up itself, so that call can
+        // take meaningfully longer than usual; if it ran before
+        // startForeground(), it could push past the 5-second deadline
+        // and trigger ForegroundServiceDidNotStartInTimeException --
+        // very plausibly the cause of the "Jarvis Companion isn't
+        // responding" seen specifically at boot (this same class of bug
+        // was already root-caused once before for CallTriggerServer; see
+        // that file's history).
         startForegroundNotification()
+        fusedClient = LocationServices.getFusedLocationProviderClient(this)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
