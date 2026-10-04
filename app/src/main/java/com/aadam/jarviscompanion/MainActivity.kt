@@ -277,7 +277,9 @@ class MainActivity : AppCompatActivity() {
 
     private fun refreshStatus() {
         setRow(locationStatusRow, LocationStreamService.isRunning)
-        setRow(deviceInfoStatusRow, DeviceInfoService.isRunning)
+        setRow(deviceInfoStatusRow, DeviceInfoService.isRunning,
+            onLabel = if (DeviceInfoService.isOnWifi) "Running" else "Running (paused -- on mobile data)",
+            offLabel = "Stopped")
         setRow(notifAccessStatusRow, JarvisNotificationListenerService.isListening,
             onLabel = "Granted", offLabel = "Not granted -- tap below")
         setRow(usageAccessStatusRow, DeviceDataProvider.hasUsageAccess(this),

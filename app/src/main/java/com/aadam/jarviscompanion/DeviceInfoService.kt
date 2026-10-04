@@ -8,7 +8,9 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.net.ConnectivityManager
+import android.net.Network
 import android.net.NetworkCapabilities
+import android.net.NetworkRequest
 import android.net.wifi.WifiManager
 import android.os.BatteryManager
 import android.os.Build
@@ -34,6 +36,7 @@ class DeviceInfoService : Service() {
 
     private var serverSocket: ServerSocket? = null
     private var serverThread: Thread? = null
+    private var networkCallback: ConnectivityManager.NetworkCallback? = null
 
     companion object {
         const val CHANNEL_ID = "jarvis_device_info_channel"
@@ -44,11 +47,24 @@ class DeviceInfoService : Service() {
         @Volatile
         var isRunning = false
             private set
+
+        // True only when the active network is WiFi. The HTTP server
+        // socket stays open regardless (avoids the churn/risk of
+        // repeatedly tearing down and rebuilding a ServerSocket), but
+        // handleClient() refuses to answer requests while this is false
+        // -- on mobile data, nothing on a different network could reach
+        // this phone's LAN address anyway, so serving requests then is
+        // both pointless and needlessly exposes the endpoint (e.g. to
+        // anything else on the same cellular APN, however unlikely).
+        @Volatile
+        var isOnWifi = false
+            private set
     }
 
     override fun onCreate() {
         super.onCreate()
         startForegroundNotification()
+        registerNetworkCallback()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -64,6 +80,41 @@ class DeviceInfoService : Service() {
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
+
+    private fun registerNetworkCallback() {
+        try {
+            val cm = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+            // Seed the initial state immediately -- the callback below
+            // only fires on CHANGES, so without this, isOnWifi would
+            // incorrectly default to false until the network changes at
+            // least once after this service starts.
+            val activeCaps = cm.activeNetwork?.let { cm.getNetworkCapabilities(it) }
+            isOnWifi = activeCaps?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true
+
+            val request = NetworkRequest.Builder()
+                .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+                .build()
+            val callback = object : ConnectivityManager.NetworkCallback() {
+                override fun onCapabilitiesChanged(network: Network, caps: NetworkCapabilities) {
+                    isOnWifi = caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)
+                }
+                override fun onLost(network: Network) {
+                    // Network fully gone (e.g. WiFi and mobile data both
+                    // down) -- treat as not-on-WiFi rather than leaving
+                    // isOnWifi stuck at its last value.
+                    val cm2 = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+                    val stillActive = cm2.activeNetwork?.let { cm2.getNetworkCapabilities(it) }
+                    isOnWifi = stillActive?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true
+                }
+            }
+            cm.registerNetworkCallback(request, callback)
+            networkCallback = callback
+        } catch (e: Exception) {
+            // If this fails for any reason, isOnWifi stays at its default
+            // (false) -- fails closed (server refuses requests) rather
+            // than open.
+        }
+    }
 
     private fun startForegroundNotification() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -105,8 +156,28 @@ class DeviceInfoService : Service() {
         thread(start = true) {
             try {
                 client.getInputStream().bufferedReader().readLine()
-                val body = buildDeviceInfoJson().toString()
                 val writer = OutputStreamWriter(client.getOutputStream())
+
+                if (!isOnWifi) {
+                    // On mobile data: refuse to serve. Nothing on a
+                    // different network could usefully reach this
+                    // phone's LAN address while on cellular anyway, so
+                    // this mainly avoids needlessly answering requests
+                    // (e.g. from something else sharing the same
+                    // cellular APN) when there's no legitimate LAN
+                    // client that could be asking.
+                    val body = """{"error":"Device info server is only active on WiFi."}"""
+                    writer.write("HTTP/1.1 503 Service Unavailable\r\n")
+                    writer.write("Content-Type: application/json\r\n")
+                    writer.write("Content-Length: ${body.toByteArray().size}\r\n")
+                    writer.write("Connection: close\r\n\r\n")
+                    writer.write(body)
+                    writer.flush()
+                    writer.close()
+                    return@thread
+                }
+
+                val body = buildDeviceInfoJson().toString()
                 writer.write("HTTP/1.1 200 OK\r\n")
                 writer.write("Content-Type: application/json\r\n")
                 writer.write("Content-Length: ${body.toByteArray().size}\r\n")
@@ -277,5 +348,11 @@ class DeviceInfoService : Service() {
         isRunning = false
         serverThread?.interrupt()
         try { serverSocket?.close() } catch (e: Exception) {}
+        try {
+            networkCallback?.let {
+                val cm = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+                cm.unregisterNetworkCallback(it)
+            }
+        } catch (e: Exception) {}
     }
 }
