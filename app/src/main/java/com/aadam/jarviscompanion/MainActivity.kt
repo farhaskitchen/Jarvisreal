@@ -352,6 +352,17 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun requestPermissionsAndStart() {
+        // On Android 11+ request all-files access first -- needed for
+        // writing audio to /storage/emulated/0/JarvisAudio/
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R &&
+            !android.os.Environment.isExternalStorageManager()) {
+            startActivity(
+                Intent(android.provider.Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION).apply {
+                    data = android.net.Uri.parse("package:$packageName")
+                }
+            )
+            return
+        }
         val missing = permissionsNeeded.filter {
             ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
         }
