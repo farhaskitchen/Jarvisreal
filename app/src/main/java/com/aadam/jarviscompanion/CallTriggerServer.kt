@@ -152,6 +152,24 @@ class CallTriggerServer : Service() {
                         statusLine = "HTTP/1.1 409 Conflict"
                         responseBody = """{"status":"error","message":"No fake call is currently active."}"""
                     }
+                } else if (requestLine.startsWith("POST") && requestLine.contains("/listen")) {
+                    // Recording can take up to 15s -- do it on this thread
+                    // (already a per-connection thread) and send the response
+                    // when done. We return early to skip the shared writer below.
+                    val path = ListenRecorder.record()
+                    val resp = if (path != null)
+                        """{"status":"ok","path":"$path"}"""
+                    else
+                        """{"status":"no_speech"}"""
+                    val writer2 = OutputStreamWriter(client.getOutputStream())
+                    writer2.write("HTTP/1.1 200 OK\r\n")
+                    writer2.write("Content-Type: application/json\r\n")
+                    writer2.write("Content-Length: ${resp.toByteArray().size}\r\n")
+                    writer2.write("Connection: close\r\n\r\n")
+                    writer2.write(resp)
+                    writer2.flush()
+                    writer2.close()
+                    return@thread
                 } else {
                     statusLine = "HTTP/1.1 404 Not Found"
                     responseBody = """{"status":"error","message":"unknown endpoint"}"""
